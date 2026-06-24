@@ -30,6 +30,12 @@ Build the clean historical alert interval table:
 uv run python scripts/build_clean_intervals.py
 ```
 
+Build dashboard-ready feature tables:
+
+```bash
+uv run python scripts/build_features.py
+```
+
 The raw downloaded snapshot stays under
 `data/raw/ukrainian-air-raid-sirens-dataset/` and is ignored by git. Source
 metadata and expected-file checks are recorded in `data/raw/manifest.json`.

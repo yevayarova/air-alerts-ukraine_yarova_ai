@@ -7,12 +7,17 @@ RAW_DIR = DATA_DIR / "raw"
 INTERIM_DIR = DATA_DIR / "interim"
 PROCESSED_DIR = DATA_DIR / "processed"
 EXTERNAL_DIR = DATA_DIR / "external"
+REPORTS_DIR = PROJECT_ROOT / "reports"
 
 RAW_DATASET_NAME = "ukrainian-air-raid-sirens-dataset"
 RAW_DATASET_DIR = RAW_DIR / RAW_DATASET_NAME
 RAW_MANIFEST_PATH = RAW_DIR / "manifest.json"
 RAW_FILE_INVENTORY_PATH = INTERIM_DIR / "raw_file_inventory.csv"
 ALERTS_CLEAN_PATH = PROCESSED_DIR / "alerts_clean.parquet"
+REGION_HOUR_FEATURES_PATH = PROCESSED_DIR / "region_hour_features.parquet"
+REGION_DAY_FEATURES_PATH = PROCESSED_DIR / "region_day_features.parquet"
+NATIONAL_DAY_FEATURES_PATH = PROCESSED_DIR / "national_day_features.parquet"
+FEATURE_VALIDATION_REPORT_PATH = REPORTS_DIR / "feature_validation.md"
 
 VADIMKIN_REPOSITORY_URL = (
     "https://github.com/Vadimkin/ukrainian-air-raid-sirens-dataset"
