@@ -1,3 +1,14 @@
+---
+title: Air Alerts Ukraine Civilian Resilience Analytics
+emoji: 🇺🇦
+colorFrom: blue
+colorTo: yellow
+sdk: streamlit
+sdk_version: 1.58.0
+app_file: app/streamlit_app.py
+pinned: false
+---
+
 # Air Alerts Ukraine
 
 Refreshable analytics for historical Ukrainian air raid alert burden and civilian
@@ -71,11 +82,26 @@ The Streamlit dashboard reads only processed data products:
 - `data/processed/region_timeseries_summary.parquet`
 - `data/processed/national_day_features.parquet`
 - `reports/metrics_validation.md`
+- `reports/timeseries_validation.md`
 
 It does not load raw source files or rebuild the pipeline at app startup. This
 keeps the app lightweight for a future Hugging Face Streamlit Space: the GitHub
 refresh pipeline can rebuild processed Parquet artifacts, then the Space can
 serve the public dashboard from those committed or synced outputs.
+
+The public interface is organized around:
+
+- Overview
+- Regional Burden
+- Human Disruption
+- Regional Inequality
+- Stability & Change
+- Methodology & Limits
+
+`Stability & Change` summarizes historical rolling trends, volatility, and
+statistical-shift signals. The section maps internal trend labels into cautious
+public language such as `historically increased`, `historically stable`, and
+`mixed historical pattern`.
 
 ## Metric Semantics
 
@@ -113,8 +139,18 @@ Volatility describes instability of civilian planning conditions. Change points
 identify statistical shifts in historical burden series, not causes. These
 diagnostics are not forecasts and are not designed for real-time decisions.
 
+For Hugging Face Spaces, the app entry command is:
+
+```bash
+streamlit run app/streamlit_app.py
+```
+
+The Space should serve committed or synced processed Parquet outputs. Data
+refresh remains outside app startup through the scripted pipeline.
+See `docs/HUGGINGFACE_SPACE.md` for the deployment checklist.
+
 ## Scope
 
 This repository supports historical burden analysis for civilian resilience
-planning. It is descriptive only and is not designed for forecasting, military
-activity analysis, movement inference, or real-time decision-making.
+planning. It is descriptive only and is not designed for forecasting,
+movement inference, or real-time decision-making.
