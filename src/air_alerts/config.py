@@ -17,7 +17,11 @@ ALERTS_CLEAN_PATH = PROCESSED_DIR / "alerts_clean.parquet"
 REGION_HOUR_FEATURES_PATH = PROCESSED_DIR / "region_hour_features.parquet"
 REGION_DAY_FEATURES_PATH = PROCESSED_DIR / "region_day_features.parquet"
 NATIONAL_DAY_FEATURES_PATH = PROCESSED_DIR / "national_day_features.parquet"
+REGION_DAY_METRICS_PATH = PROCESSED_DIR / "region_day_metrics.parquet"
+REGION_SUMMARY_METRICS_PATH = PROCESSED_DIR / "region_summary_metrics.parquet"
+NATIONAL_SUMMARY_METRICS_PATH = PROCESSED_DIR / "national_summary_metrics.parquet"
 FEATURE_VALIDATION_REPORT_PATH = REPORTS_DIR / "feature_validation.md"
+METRICS_VALIDATION_REPORT_PATH = REPORTS_DIR / "metrics_validation.md"
 
 VADIMKIN_REPOSITORY_URL = (
     "https://github.com/Vadimkin/ukrainian-air-raid-sirens-dataset"

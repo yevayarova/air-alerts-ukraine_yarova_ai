@@ -36,6 +36,12 @@ Build dashboard-ready feature tables:
 uv run python scripts/build_features.py
 ```
 
+Build dashboard-ready civilian disruption metrics:
+
+```bash
+uv run python scripts/build_metrics.py
+```
+
 The raw downloaded snapshot stays under
 `data/raw/ukrainian-air-raid-sirens-dataset/` and is ignored by git. Source
 metadata and expected-file checks are recorded in `data/raw/manifest.json`.
