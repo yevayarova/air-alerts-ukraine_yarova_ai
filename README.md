@@ -42,6 +42,12 @@ Build dashboard-ready civilian disruption metrics:
 uv run python scripts/build_metrics.py
 ```
 
+Build descriptive time-series diagnostics:
+
+```bash
+uv run python scripts/build_timeseries.py
+```
+
 Run the Streamlit dashboard locally:
 
 ```bash
@@ -61,6 +67,8 @@ The Streamlit dashboard reads only processed data products:
 - `data/processed/region_day_metrics.parquet`
 - `data/processed/region_summary_metrics.parquet`
 - `data/processed/national_summary_metrics.parquet`
+- `data/processed/region_day_timeseries.parquet`
+- `data/processed/region_timeseries_summary.parquet`
 - `data/processed/national_day_features.parquet`
 - `reports/metrics_validation.md`
 
@@ -87,6 +95,23 @@ rescaled if new minima or maxima are observed.
 Kyiv-local dashboard hours use a 24-hour wall-clock display grid. Daylight saving
 transition days are documented as a limitation because repeated or skipped local
 clock hours are not modeled as separate dashboard buckets.
+
+## Time-Series Diagnostics
+
+The time-series layer is descriptive historical diagnostics for non-stationary
+civilian alert burden:
+
+- `data/processed/region_day_timeseries.parquet` adds rolling means and rolling
+  volatility for alert minutes and ABI.
+- `data/processed/region_timeseries_summary.parquet` summarizes early/middle/late
+  period comparisons, latest-vs-previous 30-day changes, conservative
+  change-point dates, volatility labels, trend labels, and statistical-shift labels.
+- `reports/timeseries_validation.md` documents output coverage, null counts,
+  label rules, examples, and limitations.
+
+Volatility describes instability of civilian planning conditions. Change points
+identify statistical shifts in historical burden series, not causes. These
+diagnostics are not forecasts and are not designed for real-time decisions.
 
 ## Scope
 
