@@ -1,92 +1,101 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import shutil
 import zipfile
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
 import requests
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-RAW_DIR = PROJECT_ROOT / "data" / "raw"
-
-VADIMKIN_URL = (
-    "https://github.com/Vadimkin/ukrainian-air-raid-sirens-dataset/"
-    "archive/refs/heads/main.zip"
+from air_alerts.config import (
+    RAW_DATASET_DIR,
+    RAW_DATASET_NAME,
+    RAW_DIR,
+    RAW_MANIFEST_PATH,
+    VADIMKIN_ZIP_URL,
 )
+from air_alerts.raw_manifest import build_manifest
 
-DATASET_DIR = RAW_DIR / "ukrainian-air-raid-sirens-dataset"
-ZIP_PATH = RAW_DIR / "sirens_dataset.zip"
-MANIFEST_PATH = RAW_DIR / "manifest.json"
+TEMP_EXTRACT_DIR = RAW_DIR / "_tmp_extract"
+TEMP_ZIP_PATH = RAW_DIR / f"{RAW_DATASET_NAME}.zip"
 
 
-def download_file(url: str, output_path: Path) -> None:
+@dataclass(frozen=True)
+class DownloadResult:
+    requested_url: str
+    final_url: str
+    size_bytes: int
+    sha256: str
+
+
+def download_file(url: str, output_path: Path) -> DownloadResult:
     output_path.parent.mkdir(parents=True, exist_ok=True)
+    sha256 = hashlib.sha256()
+    size_bytes = 0
 
     with requests.get(url, stream=True, timeout=120) as response:
         response.raise_for_status()
         with output_path.open("wb") as file:
             for chunk in response.iter_content(chunk_size=1024 * 1024):
                 if chunk:
+                    sha256.update(chunk)
+                    size_bytes += len(chunk)
                     file.write(chunk)
+
+        return DownloadResult(
+            requested_url=url,
+            final_url=response.url,
+            size_bytes=size_bytes,
+            sha256=sha256.hexdigest(),
+        )
 
 
 def extract_zip(zip_path: Path, output_dir: Path) -> None:
-    temp_extract_dir = RAW_DIR / "_tmp_extract"
+    if TEMP_EXTRACT_DIR.exists():
+        shutil.rmtree(TEMP_EXTRACT_DIR)
 
-    if temp_extract_dir.exists():
-        shutil.rmtree(temp_extract_dir)
+    TEMP_EXTRACT_DIR.mkdir(parents=True, exist_ok=True)
 
-    temp_extract_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        with zipfile.ZipFile(zip_path, "r") as zip_ref:
+            _safe_extract(zip_ref, TEMP_EXTRACT_DIR)
 
-    with zipfile.ZipFile(zip_path, "r") as zip_ref:
-        zip_ref.extractall(temp_extract_dir)
+        extracted_dirs = [path for path in TEMP_EXTRACT_DIR.iterdir() if path.is_dir()]
+        if len(extracted_dirs) != 1:
+            raise RuntimeError(f"Expected one extracted directory, found: {extracted_dirs}")
 
-    extracted_dirs = [p for p in temp_extract_dir.iterdir() if p.is_dir()]
-    if len(extracted_dirs) != 1:
-        raise RuntimeError(f"Expected one extracted directory, found: {extracted_dirs}")
+        extracted_root = extracted_dirs[0]
 
-    extracted_root = extracted_dirs[0]
+        if output_dir.exists():
+            shutil.rmtree(output_dir)
 
-    if output_dir.exists():
-        shutil.rmtree(output_dir)
-
-    shutil.move(str(extracted_root), str(output_dir))
-    shutil.rmtree(temp_extract_dir)
+        shutil.move(str(extracted_root), str(output_dir))
+    finally:
+        if TEMP_EXTRACT_DIR.exists():
+            shutil.rmtree(TEMP_EXTRACT_DIR)
 
 
-def build_manifest() -> dict:
-    expected_files = [
-        "datasets/official_data_en.csv",
-        "datasets/official_data_uk.csv",
-        "datasets/volunteer_data_en.csv",
-        "datasets/volunteer_data_uk.csv",
-    ]
+def _safe_extract(zip_ref: zipfile.ZipFile, destination: Path) -> None:
+    destination = destination.resolve()
+    for member in zip_ref.infolist():
+        target = (destination / member.filename).resolve()
+        if destination not in target.parents and target != destination:
+            raise RuntimeError(f"Refusing to extract unsafe ZIP member: {member.filename}")
+    zip_ref.extractall(destination)
 
-    files = []
-    for relative_path in expected_files:
-        path = DATASET_DIR / relative_path
-        files.append(
-            {
-                "path": relative_path,
-                "exists": path.exists(),
-                "size_bytes": path.stat().st_size if path.exists() else None,
-            }
-        )
 
-    return {
-        "source": "vadimkin_ukrainian_air_raid_sirens_dataset",
-        "source_url": VADIMKIN_URL,
-        "downloaded_at_utc": datetime.now(timezone.utc).isoformat(),
-        "local_path": str(DATASET_DIR.relative_to(PROJECT_ROOT)),
-        "files": files,
-    }
+def read_existing_manifest() -> dict:
+    if not RAW_MANIFEST_PATH.exists():
+        return {}
+    return json.loads(RAW_MANIFEST_PATH.read_text(encoding="utf-8"))
 
 
 def write_manifest(manifest: dict) -> None:
-    MANIFEST_PATH.write_text(
+    RAW_MANIFEST_PATH.write_text(
         json.dumps(manifest, indent=2, ensure_ascii=False),
         encoding="utf-8",
     )
@@ -94,28 +103,52 @@ def write_manifest(manifest: dict) -> None:
 
 def download_vadimkin_dataset(force: bool = False) -> None:
     RAW_DIR.mkdir(parents=True, exist_ok=True)
+    previous_manifest = read_existing_manifest()
+    download_result = None
 
-    if DATASET_DIR.exists() and not force:
-        print(f"Dataset already exists: {DATASET_DIR}")
-        print("Use --force to re-download.")
-    else:
-        print(f"Downloading: {VADIMKIN_URL}")
-        download_file(VADIMKIN_URL, ZIP_PATH)
+    try:
+        if RAW_DATASET_DIR.exists() and not force:
+            print(f"Dataset already exists: {RAW_DATASET_DIR}")
+            print("Validating local snapshot.")
+        else:
+            print(f"Downloading: {VADIMKIN_ZIP_URL}")
+            download_result = download_file(VADIMKIN_ZIP_URL, TEMP_ZIP_PATH)
 
-        print(f"Extracting to: {DATASET_DIR}")
-        extract_zip(ZIP_PATH, DATASET_DIR)
+            print(f"Extracting to: {RAW_DATASET_DIR}")
+            extract_zip(TEMP_ZIP_PATH, RAW_DATASET_DIR)
+    finally:
+        if TEMP_ZIP_PATH.exists():
+            TEMP_ZIP_PATH.unlink()
 
-        if ZIP_PATH.exists():
-            ZIP_PATH.unlink()
+    nested_git_dirs = list(RAW_DATASET_DIR.rglob(".git"))
+    if nested_git_dirs:
+        raise RuntimeError(f"Nested git metadata found in raw data: {nested_git_dirs}")
 
-    manifest = build_manifest()
+    downloaded_at_utc = (
+        datetime.now(timezone.utc).isoformat()
+        if download_result is not None
+        else previous_manifest.get("downloaded_at_utc")
+    )
+    manifest = build_manifest(
+        dataset_dir=RAW_DATASET_DIR,
+        archive_final_url=download_result.final_url if download_result else None,
+        archive_sha256=download_result.sha256 if download_result else None,
+        archive_size_bytes=download_result.size_bytes if download_result else None,
+        downloaded_at_utc=downloaded_at_utc,
+        previous_manifest=previous_manifest,
+    )
     write_manifest(manifest)
 
-    missing = [file["path"] for file in manifest["files"] if not file["exists"]]
-    if missing:
-        raise RuntimeError(f"Missing expected files: {missing}")
+    if manifest["missing_expected_files"]:
+        raise RuntimeError(
+            f"Missing expected files: {manifest['missing_expected_files']}. "
+            "Use --force to re-download the raw snapshot."
+        )
 
-    print(f"Manifest written: {MANIFEST_PATH}")
+    if RAW_DATASET_DIR.exists() and download_result is None:
+        print("Use --force to re-download.")
+
+    print(f"Manifest written: {RAW_MANIFEST_PATH}")
     print("Data download/check complete.")
 
 

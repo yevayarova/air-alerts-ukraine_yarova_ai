@@ -1,8 +1,16 @@
 {
-  "source": "vadimkin_ukrainian_air_raid_sirens_dataset",
-  "source_url": "https://github.com/Vadimkin/ukrainian-air-raid-sirens-dataset/archive/refs/heads/main.zip",
-  "downloaded_at_utc": "2026-06-24T13:56:14.367848+00:00",
+  "source": "vadimkin",
+  "source_name": "Ukrainian Air Raid Sirens Dataset",
+  "repository_url": "https://github.com/Vadimkin/ukrainian-air-raid-sirens-dataset",
+  "archive_url": "https://github.com/Vadimkin/ukrainian-air-raid-sirens-dataset/archive/refs/heads/main.zip",
+  "archive_final_url": "https://codeload.github.com/Vadimkin/ukrainian-air-raid-sirens-dataset/zip/refs/heads/main",
+  "archive_sha256": "e2b4d86b767095cfa0e92bda840969d4f0da4b705ed59ada03a72d3a288322c4",
+  "archive_size_bytes": 17001202,
+  "downloaded_at_utc": "2026-06-24T14:18:04.875616+00:00",
+  "manifest_created_at_utc": "2026-06-24T14:18:12.926958+00:00",
   "local_path": "data/raw/ukrainian-air-raid-sirens-dataset",
+  "expected_files_present": true,
+  "missing_expected_files": [],
   "files": [
     {
       "path": "datasets/official_data_en.csv",

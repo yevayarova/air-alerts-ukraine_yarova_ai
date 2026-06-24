@@ -217,8 +217,10 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
-# Raw and generated data
+# Raw snapshots and generated data products
 data/raw/*
+data/raw/_tmp_extract/
+data/raw/ukrainian-air-raid-sirens-dataset/
 !data/raw/.gitkeep
 !data/raw/manifest.json
 
@@ -227,6 +229,8 @@ data/interim/*
 
 data/processed/*
 !data/processed/.gitkeep
+!data/processed/*.parquet
+!data/processed/data_manifest.json
 
 # Downloaded archives
 *.zip
@@ -234,4 +238,3 @@ data/processed/*
 # Local secrets
 .env
 .streamlit/secrets.toml
-

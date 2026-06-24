@@ -1,13 +1,18 @@
-from air_alerts.config import INTERIM_DIR, RAW_DIR
+from __future__ import annotations
+
+from air_alerts.config import RAW_DATASET_DIR, RAW_FILE_INVENTORY_PATH
 from air_alerts.data_sources import inspect_dataset
 
-dataset_dir = RAW_DIR / "ukrainian-air-raid-sirens-dataset"
 
-df = inspect_dataset(dataset_dir)
-print(df)
+def main() -> None:
+    df = inspect_dataset(RAW_DATASET_DIR)
+    print(df)
 
-INTERIM_DIR.mkdir(parents=True, exist_ok=True)
-output_path = INTERIM_DIR / "raw_file_inventory.csv"
-df.write_csv(output_path)
+    RAW_FILE_INVENTORY_PATH.parent.mkdir(parents=True, exist_ok=True)
+    df.write_csv(RAW_FILE_INVENTORY_PATH)
 
-print(f"Saved: {output_path}")
+    print(f"Saved: {RAW_FILE_INVENTORY_PATH}")
+
+
+if __name__ == "__main__":
+    main()
