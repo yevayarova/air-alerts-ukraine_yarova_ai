@@ -1,0 +1,28 @@
+{
+  "source": "vadimkin_ukrainian_air_raid_sirens_dataset",
+  "source_url": "https://github.com/Vadimkin/ukrainian-air-raid-sirens-dataset/archive/refs/heads/main.zip",
+  "downloaded_at_utc": "2026-06-24T13:56:14.367848+00:00",
+  "local_path": "data/raw/ukrainian-air-raid-sirens-dataset",
+  "files": [
+    {
+      "path": "datasets/official_data_en.csv",
+      "exists": true,
+      "size_bytes": 28223490
+    },
+    {
+      "path": "datasets/official_data_uk.csv",
+      "exists": true,
+      "size_bytes": 37485094
+    },
+    {
+      "path": "datasets/volunteer_data_en.csv",
+      "exists": true,
+      "size_bytes": 7824147
+    },
+    {
+      "path": "datasets/volunteer_data_uk.csv",
+      "exists": true,
+      "size_bytes": 9740068
+    }
+  ]
+}

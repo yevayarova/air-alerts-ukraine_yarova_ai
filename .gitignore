@@ -216,3 +216,22 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Raw and generated data
+data/raw/*
+!data/raw/.gitkeep
+!data/raw/manifest.json
+
+data/interim/*
+!data/interim/.gitkeep
+
+data/processed/*
+!data/processed/.gitkeep
+
+# Downloaded archives
+*.zip
+
+# Local secrets
+.env
+.streamlit/secrets.toml
+
