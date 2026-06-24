@@ -1,17 +1,20 @@
 from __future__ import annotations
 
-from datetime import datetime, time, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import polars as pl
 
 from air_alerts.features import (
+    DST_LIMITATION_NOTE,
     build_national_day_features,
     build_region_day_features,
     build_region_hour_features,
     longest_alert_free_window,
     overlap_minutes,
     validate_feature_ranges,
+    write_feature_validation_report,
 )
 
 KYIV = ZoneInfo("Europe/Kyiv")
@@ -112,6 +115,71 @@ def test_overlapping_intervals_do_not_double_count_daily_minutes() -> None:
     region_day = build_region_day_features(alerts, region_hour)
 
     assert region_day.select("alert_minutes_total").item() == 90
+    row = region_day.row(0, named=True)
+    assert row["raw_alert_record_count"] == 2
+    assert row["merged_alert_episode_count"] == 1
+    assert row["alert_count"] == 1
+
+
+def test_administrative_duplicate_records_do_not_inflate_merged_episode_count() -> None:
+    start = _kyiv_to_utc(2022, 1, 1, 4, 0)
+    end = _kyiv_to_utc(2022, 1, 1, 5, 0)
+    alerts = _alerts_frame(
+        [
+            ("Kyiv City", start, end),
+            ("Kyiv City", start, end),
+        ]
+    )
+
+    region_hour = build_region_hour_features(alerts)
+    region_day = build_region_day_features(alerts, region_hour)
+
+    row = region_day.row(0, named=True)
+    assert row["alert_minutes_total"] == 60
+    assert row["raw_alert_record_count"] == 2
+    assert row["merged_alert_episode_count"] == 1
+    assert row["alert_count"] == 1
+
+
+def test_cross_midnight_intervals_split_correctly_by_local_date() -> None:
+    alerts = _alerts_frame(
+        [
+            (
+                "Kyiv City",
+                _kyiv_to_utc(2022, 1, 1, 23, 30),
+                _kyiv_to_utc(2022, 1, 2, 0, 30),
+            ),
+        ]
+    )
+
+    region_hour = build_region_hour_features(alerts)
+    region_day = build_region_day_features(alerts, region_hour)
+    rows = {row["date"]: row for row in region_day.iter_rows(named=True)}
+
+    assert rows[date(2022, 1, 1)]["alert_minutes_total"] == 30
+    assert rows[date(2022, 1, 2)]["alert_minutes_total"] == 30
+    assert rows[date(2022, 1, 1)]["merged_alert_episode_count"] == 1
+    assert rows[date(2022, 1, 2)]["merged_alert_episode_count"] == 1
+
+
+def test_feature_report_documents_dst_wall_clock_limitation(tmp_path: Path) -> None:
+    alerts = _alerts_frame(
+        [
+            (
+                "Kyiv City",
+                _kyiv_to_utc(2022, 3, 27, 1, 30),
+                _kyiv_to_utc(2022, 3, 27, 3, 30),
+            ),
+        ]
+    )
+    region_hour = build_region_hour_features(alerts)
+    region_day = build_region_day_features(alerts, region_hour)
+    national_day = build_national_day_features(region_hour, region_day)
+    output_path = tmp_path / "feature_validation.md"
+
+    write_feature_validation_report(alerts, region_hour, region_day, national_day, output_path)
+
+    assert DST_LIMITATION_NOTE in output_path.read_text(encoding="utf-8")
 
 
 def test_alert_minutes_in_hour_bounded_between_0_and_60() -> None:

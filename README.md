@@ -69,8 +69,27 @@ keeps the app lightweight for a future Hugging Face Streamlit Space: the GitHub
 refresh pipeline can rebuild processed Parquet artifacts, then the Space can
 serve the public dashboard from those committed or synced outputs.
 
+## Metric Semantics
+
+Daily feature tables keep two alert-count fields:
+
+- `raw_alert_record_count` counts cleaned source records intersecting a region-date.
+- `merged_alert_episode_count` counts non-overlapping alert episodes after records
+  are merged within a region-date.
+
+`alert_count` is retained as a compatibility alias for
+`merged_alert_episode_count`. The Alert Burden Index uses merged episodes, not raw
+source record counts, so overlapping administrative records do not inflate the
+count component. ABI components are min-max normalized over the currently
+processed region-day table; after a data refresh, historical ABI values can be
+rescaled if new minima or maxima are observed.
+
+Kyiv-local dashboard hours use a 24-hour wall-clock display grid. Daylight saving
+transition days are documented as a limitation because repeated or skipped local
+clock hours are not modeled as separate dashboard buckets.
+
 ## Scope
 
 This repository supports historical burden analysis for civilian resilience
-planning. It does not provide operational forecasts, target selection, route
-inference, or tactical recommendations.
+planning. It is descriptive only and is not designed for forecasting, military
+activity analysis, movement inference, or real-time decision-making.

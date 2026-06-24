@@ -176,8 +176,8 @@ def main() -> None:
     st.caption(
         "Civilian resilience analytics from historical air raid alert data. "
         "This dashboard describes alert burden, sleep disruption, work/study "
-        "disruption, and regional inequality; it does not forecast attacks or "
-        "military activity."
+        "disruption, and regional inequality. It is descriptive only and does "
+        "not support real-time decision-making."
     )
 
     data = load_dashboard_data()
@@ -200,7 +200,7 @@ def main() -> None:
     render_regional_rankings(data.region_summary)
     render_time_series(filtered, metric_label, metric_column)
     render_sleep_work_section(filtered)
-    render_inequality_section(filtered)
+    render_inequality_section(data.region_day, selected_range)
     render_methodology(data.validation_report)
 
 
@@ -241,7 +241,7 @@ def render_sidebar(
 
 
 def render_overview(data: DashboardData, filtered: pl.DataFrame) -> None:
-    st.subheader("Overview")
+    st.subheader("National Summary")
     national = data.national_summary.row(0, named=True) if not data.national_summary.is_empty() else {}
     region_count = (
         data.region_summary.select(pl.col("region_name").n_unique()).item()
@@ -256,22 +256,34 @@ def render_overview(data: DashboardData, filtered: pl.DataFrame) -> None:
     ).row(0, named=True)
 
     col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Regions", f"{region_count or 0}")
+    col1.metric("Regions in Dataset", f"{region_count or 0}")
     col2.metric(
-        "Total Alert Hours",
+        "National Alert Hours",
         format_minutes_as_hours(national.get("total_alert_minutes_all_regions")),
     )
-    col3.metric("Avg ABI", f"{metric_row['mean_abi']:.3f}")
-    col4.metric("Selected Region Hours", format_minutes_as_hours(metric_row["filtered_minutes"]))
+    col3.metric(
+        "Mean National Burden Index",
+        _format_decimal(national.get("mean_national_alert_burden_index")),
+    )
+    col4.metric(
+        "Coverage",
+        f"{national.get('date_start')} to {national.get('date_end')}" if national else "n/a",
+    )
 
-    col5, col6, col7 = st.columns(3)
-    col5.metric("Avg SDI", f"{metric_row['mean_sdi']:.3f}")
-    col6.metric("Avg WDI", f"{metric_row['mean_wdi']:.3f}")
-    if national:
-        col7.metric(
-            "Coverage",
-            f"{national.get('date_start')} to {national.get('date_end')}",
-        )
+    selected_region = (
+        filtered["region_name"][0]
+        if not filtered.is_empty() and "region_name" in filtered.columns
+        else "Selected region"
+    )
+    st.subheader(f"Selected-Region Metrics: {selected_region}")
+    col5, col6, col7, col8 = st.columns(4)
+    col5.metric("Selected Avg ABI", _format_decimal(metric_row["mean_abi"]))
+    col6.metric("Selected Avg SDI", _format_decimal(metric_row["mean_sdi"]))
+    col7.metric("Selected Avg WDI", _format_decimal(metric_row["mean_wdi"]))
+    col8.metric(
+        "Selected Alert Hours",
+        format_minutes_as_hours(metric_row["filtered_minutes"]),
+    )
 
 
 def render_regional_rankings(region_summary: pl.DataFrame) -> None:
@@ -390,14 +402,26 @@ def render_sleep_work_section(filtered: pl.DataFrame) -> None:
     st.plotly_chart(fig, width="stretch")
 
 
-def render_inequality_section(filtered: pl.DataFrame) -> None:
-    st.subheader("Regional Inequality")
+def render_inequality_section(
+    region_day: pl.DataFrame,
+    selected_range: tuple[date, date],
+) -> None:
+    st.subheader("Across-Region Inequality")
     st.write(
         "Gini values range from 0 to 1; higher values mean daily alert burden was "
-        "more concentrated across regions."
+        "more concentrated across regions. This section uses all regions for the "
+        "selected date range, independent of the selected-region filter."
     )
     required = {"date", "gini_alert_minutes_total", "gini_alert_burden_index"}
-    if not _warn_for_missing_columns(filtered, required, "filtered region-day metrics"):
+    if not _warn_for_missing_columns(region_day, required, "region-day metrics"):
+        return
+
+    start_date, end_date = selected_range
+    filtered = region_day.filter(
+        (pl.col("date") >= start_date) & (pl.col("date") <= end_date)
+    )
+    if filtered.is_empty():
+        st.warning("No inequality rows match the selected date range.")
         return
 
     inequality = (
@@ -442,10 +466,13 @@ def render_methodology(validation_report: str) -> None:
     st.subheader("Methodology and Limitations")
     st.markdown(
         """
-        **ABI** combines normalized daily alert minutes, alert count, maximum alert
-        duration, and the absence of a long alert-free recovery window.
+        **ABI** combines normalized daily alert minutes, merged alert episode count,
+        maximum alert duration, and the absence of a long alert-free recovery window.
+        Min-max normalization is recomputed when the processed dataset is refreshed,
+        so ABI is best read as a refresh-relative descriptive index.
 
-        **SDI** is the share of the default 22:00-07:00 Kyiv sleep window under alert.
+        **SDI** is the share of default Kyiv-local night hours under alert. The
+        calendar-day view combines 00:00-07:00 and 22:00-24:00 on the same date.
 
         **WDI** is the share of the default Monday-Friday 09:00-18:00 Kyiv work/study
         window under alert.
@@ -468,6 +495,12 @@ def _warn_for_missing_columns(
         st.warning(f"Missing expected columns in {label}: {', '.join(missing)}")
         return False
     return True
+
+
+def _format_decimal(value: float | int | None) -> str:
+    if value is None:
+        return "n/a"
+    return f"{float(value):.3f}"
 
 
 if __name__ == "__main__":

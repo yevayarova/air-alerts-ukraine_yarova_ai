@@ -27,6 +27,12 @@ KYIV_ZONE = ZoneInfo(KYIV_TZ)
 DAY_MINUTES = 24 * 60
 SLEEP_WINDOW_MINUTES = 9 * 60
 WORK_WINDOW_MINUTES = 9 * 60
+DST_LIMITATION_NOTE = (
+    "Kyiv-local timestamps are represented as wall-clock hours for dashboard "
+    "aggregation. Daylight saving transition days are kept on a 24-hour display "
+    "grid, so repeated or skipped local clock hours are not modeled as separate "
+    "dashboard buckets."
+)
 
 
 @dataclass(frozen=True)
@@ -143,6 +149,8 @@ def build_region_day_features(
     for row in daily_minutes.iter_rows(named=True):
         key = (row["region_name"], row["date"])
         stats = alert_stats.get(key, _blank_day_stats())
+        merged_intervals = merged_day_intervals.get(key, [])
+        merged_episode_count = len(merged_intervals)
         day_start = datetime.combine(row["date"], time.min)
         day_end = day_start + timedelta(days=1)
         alert_minutes_total = float(row["alert_minutes_total"])
@@ -153,14 +161,16 @@ def build_region_day_features(
                 "region_id": row["region_id"],
                 "region_name": row["region_name"],
                 "date": row["date"],
-                "alert_count": stats["alert_count"],
+                "alert_count": merged_episode_count,
+                "raw_alert_record_count": stats["raw_alert_record_count"],
+                "merged_alert_episode_count": merged_episode_count,
                 "alert_minutes_total": alert_minutes_total,
                 "alert_minutes_night": alert_minutes_night,
                 "alert_minutes_workday": alert_minutes_workday,
                 "max_alert_duration": stats["max_alert_duration"],
                 "median_alert_duration": stats["median_alert_duration"],
                 "longest_alert_free_window_minutes": longest_alert_free_window(
-                    merged_day_intervals.get(key, []),
+                    merged_intervals,
                     day_start,
                     day_end,
                 ),
@@ -350,13 +360,22 @@ Validation passed: {validation["passed"]}
 - Zero or negative durations: {profile["zero_or_negative_durations"]}
 - Duplicate alert_id values: {profile["duplicate_alert_ids"]}
 
+## Alert Count Semantics
+
+- `raw_alert_record_count` counts cleaned source records intersecting a region-date.
+- `merged_alert_episode_count` counts merged, non-overlapping alert episodes after records are combined within the same region-date.
+- `alert_count` is retained as a dashboard-compatible alias of `merged_alert_episode_count`.
+- Alert minutes and recovery windows are computed from merged intervals, so overlapping administrative records do not double-count minutes.
+
 ## Safety Note
 
-These features measure historical civilian alert burden and disruption. They do not predict attacks, targets, routes, or military activity.
+These features measure historical civilian alert burden and disruption. They are descriptive only and are not designed for forecasting or real-time decision-making.
 
 ## Known Limitations
 
 - Sleep/work windows are default assumptions and may not match every person/institution.
+- Calendar-day sleep minutes combine 00:00-07:00 and 22:00-24:00 Kyiv-local hours on the same date; they are not person-level sleep episodes.
+- {DST_LIMITATION_NOTE}
 - Region-level aggregation may hide within-region variation.
 - Feature tables are descriptive, not causal.
 """
@@ -491,7 +510,7 @@ def _minutes_by_region_hour(
 def _daily_alert_stats(records: list[AlertRecord]) -> dict[tuple[str, date], dict]:
     stats = defaultdict(
         lambda: {
-            "alert_count": 0,
+            "raw_alert_record_count": 0,
             "durations": [],
             "first_alert_time": None,
             "last_alert_time": None,
@@ -512,7 +531,7 @@ def _daily_alert_stats(records: list[AlertRecord]) -> dict[tuple[str, date], dic
             key = (record.region_name, day)
             intersection_start = max(record.started_at_local, day_start)
             intersection_end = min(record.finished_at_local, day_end)
-            stats[key]["alert_count"] += 1
+            stats[key]["raw_alert_record_count"] += 1
             stats[key]["durations"].append(record.duration_minutes)
             stats[key]["first_alert_time"] = _min_optional_datetime(
                 stats[key]["first_alert_time"],
@@ -525,7 +544,7 @@ def _daily_alert_stats(records: list[AlertRecord]) -> dict[tuple[str, date], dic
 
     return {
         key: {
-            "alert_count": value["alert_count"],
+            "raw_alert_record_count": value["raw_alert_record_count"],
             "max_alert_duration": max(value["durations"]),
             "median_alert_duration": float(median(value["durations"])),
             "first_alert_time": value["first_alert_time"],
@@ -611,7 +630,7 @@ def _to_kyiv_wall_time(value: datetime) -> datetime:
 
 def _blank_day_stats() -> dict:
     return {
-        "alert_count": 0,
+        "raw_alert_record_count": 0,
         "max_alert_duration": None,
         "median_alert_duration": None,
         "first_alert_time": None,
@@ -726,6 +745,8 @@ def _empty_region_day() -> pl.DataFrame:
             "region_name": pl.String,
             "date": pl.Date,
             "alert_count": pl.Int64,
+            "raw_alert_record_count": pl.Int64,
+            "merged_alert_episode_count": pl.Int64,
             "alert_minutes_total": pl.Float64,
             "alert_minutes_night": pl.Float64,
             "alert_minutes_workday": pl.Float64,

@@ -1,6 +1,6 @@
 # Milestone 4 Metrics Validation
 
-Generated at UTC: 2026-06-24T14:59:35.132153+00:00
+Generated at UTC: 2026-06-24T15:25:19.059093+00:00
 
 ## Inputs
 
@@ -21,7 +21,9 @@ Generated at UTC: 2026-06-24T14:59:35.132153+00:00
 
 ## Metric Formulas
 
-- Alert Burden Index: 0.50 * normalized(alert_minutes_total) + 0.20 * normalized(alert_count) + 0.20 * normalized(max_alert_duration) + 0.10 * normalized(1 - longest_alert_free_window_minutes / 1440).
+- Alert Burden Index: 0.50 * normalized(alert_minutes_total) + 0.20 * normalized(merged_alert_episode_count) + 0.20 * normalized(max_alert_duration) + 0.10 * normalized(1 - longest_alert_free_window_minutes / 1440).
+- ABI uses `merged_alert_episode_count`, not raw source record count, so overlapping administrative records do not inflate the count component.
+- Min-max normalization is computed over the observed region-day table at build time. A future refresh can rescale historical ABI values if new minima or maxima enter the dataset.
 - Sleep Disruption Index: alert_minutes_night / 540.
 - Work/Study Disruption Index: alert_minutes_workday / 540.
 - Alert-free recovery: alert_free_window_share = longest_alert_free_window_minutes / 1440; low_recovery_day is true when the longest alert-free window is less than 8 hours.
@@ -31,12 +33,12 @@ Generated at UTC: 2026-06-24T14:59:35.132153+00:00
 
 | Metric | Min | Max | Expected range | Passed |
 | --- | ---: | ---: | --- | --- |
-| alert_burden_index | 0.0000 | 0.9763 | 0 to 1 | True |
+| alert_burden_index | 0.0000 | 0.8125 | 0 to 1 | True |
 | sleep_disruption_index | 0.0000 | 1.0000 | 0 to 1 | True |
 | workday_disruption_index | 0.0000 | 1.0000 | 0 to 1 | True |
 | alert_free_window_share | 0.0000 | 1.0000 | 0 to 1 | True |
 | gini_alert_minutes_total | 0.1366 | 0.9358 | 0 to 1 | True |
-| gini_alert_burden_index | 0.1019 | 0.9301 | 0 to 1 | True |
+| gini_alert_burden_index | 0.1104 | 0.9298 | 0 to 1 | True |
 
 Validation passed: True
 
@@ -44,9 +46,9 @@ Validation passed: True
 
 ### Alert Burden Category
 
-- low: 35080
-- medium: 3424
-- high: 1021
+- low: 34038
+- medium: 4854
+- high: 633
 
 ### Sleep Disruption Category
 
@@ -64,16 +66,16 @@ Validation passed: True
 
 ### Mean Alert Burden Index
 
-- Dnipropetrovska oblast: 0.4965
-- Kharkivska oblast: 0.4728
-- Donetska oblast: 0.3614
-- Sumska oblast: 0.2620
-- Zaporizka oblast: 0.2413
-- Chernihivska oblast: 0.1807
-- Poltavska oblast: 0.1671
-- Mykolaivska oblast: 0.1323
-- Khersonska oblast: 0.1257
-- Kirovohradska oblast: 0.1179
+- Dnipropetrovska oblast: 0.4960
+- Kharkivska oblast: 0.4877
+- Donetska oblast: 0.4006
+- Sumska oblast: 0.2958
+- Zaporizka oblast: 0.2875
+- Chernihivska oblast: 0.2031
+- Poltavska oblast: 0.2024
+- Mykolaivska oblast: 0.1628
+- Khersonska oblast: 0.1570
+- Kirovohradska oblast: 0.1456
 
 ### Mean Sleep Disruption Index
 
@@ -103,12 +105,14 @@ Validation passed: True
 
 ## Safety Note
 
-These metrics measure historical civilian alert burden and disruption. They do not predict attacks, targets, routes, or military activity.
+These metrics measure historical civilian alert burden and disruption. They are descriptive only and are not designed for forecasting or real-time decision-making.
 
 ## Known Limitations
 
 - Metric weights are analytic design choices and should be interpreted as descriptive indicators.
+- ABI values are refresh-relative because min-max normalization is rebuilt from the current processed dataset.
 - Sleep/work windows are default assumptions and may not match every person or institution.
+- Sleep disruption is based on calendar-day Kyiv-local night hours, not individual sleep episodes.
 - Region-level aggregation may hide within-region variation.
 - Metrics are descriptive, not causal.
-- High burden does not mean higher attack probability.
+- High burden should not be read as a future danger signal.

@@ -72,7 +72,7 @@ def gini(values: Iterable[float | int | None]) -> float:
 
 def compute_alert_burden_index(region_day: pl.DataFrame) -> pl.DataFrame:
     alert_minutes = _normalized_expression(region_day, pl.col("alert_minutes_total"))
-    alert_count = _normalized_expression(region_day, pl.col("alert_count"))
+    alert_count = _normalized_expression(region_day, _alert_episode_count_expr(region_day))
     max_duration = _normalized_expression(
         region_day,
         pl.col("max_alert_duration").fill_null(0),
@@ -370,7 +370,9 @@ Generated at UTC: {datetime.now(timezone.utc).isoformat()}
 
 ## Metric Formulas
 
-- Alert Burden Index: 0.50 * normalized(alert_minutes_total) + 0.20 * normalized(alert_count) + 0.20 * normalized(max_alert_duration) + 0.10 * normalized(1 - longest_alert_free_window_minutes / 1440).
+- Alert Burden Index: 0.50 * normalized(alert_minutes_total) + 0.20 * normalized(merged_alert_episode_count) + 0.20 * normalized(max_alert_duration) + 0.10 * normalized(1 - longest_alert_free_window_minutes / 1440).
+- ABI uses `merged_alert_episode_count`, not raw source record count, so overlapping administrative records do not inflate the count component.
+- Min-max normalization is computed over the observed region-day table at build time. A future refresh can rescale historical ABI values if new minima or maxima enter the dataset.
 - Sleep Disruption Index: alert_minutes_night / 540.
 - Work/Study Disruption Index: alert_minutes_workday / 540.
 - Alert-free recovery: alert_free_window_share = longest_alert_free_window_minutes / 1440; low_recovery_day is true when the longest alert-free window is less than 8 hours.
@@ -419,15 +421,17 @@ Validation passed: {validation["passed"]}
 
 ## Safety Note
 
-These metrics measure historical civilian alert burden and disruption. They do not predict attacks, targets, routes, or military activity.
+These metrics measure historical civilian alert burden and disruption. They are descriptive only and are not designed for forecasting or real-time decision-making.
 
 ## Known Limitations
 
 - Metric weights are analytic design choices and should be interpreted as descriptive indicators.
+- ABI values are refresh-relative because min-max normalization is rebuilt from the current processed dataset.
 - Sleep/work windows are default assumptions and may not match every person or institution.
+- Sleep disruption is based on calendar-day Kyiv-local night hours, not individual sleep episodes.
 - Region-level aggregation may hide within-region variation.
 - Metrics are descriptive, not causal.
-- High burden does not mean higher attack probability.
+- High burden should not be read as a future danger signal.
 """
     output_path.write_text(report, encoding="utf-8")
 
@@ -449,6 +453,12 @@ def _normalized_expression(region_day: pl.DataFrame, expr: pl.Expr) -> list[floa
     return minmax_normalize(
         region_day.select(expr.alias("_value")).to_series().to_list()
     )
+
+
+def _alert_episode_count_expr(region_day: pl.DataFrame) -> pl.Expr:
+    if "merged_alert_episode_count" in region_day.columns:
+        return pl.col("merged_alert_episode_count")
+    return pl.col("alert_count")
 
 
 def _top_bottom_ratio(values: list[float | int | None]) -> float | None:

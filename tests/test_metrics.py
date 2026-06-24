@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+from math import isfinite
 
 import polars as pl
 
@@ -60,6 +61,34 @@ def test_alert_burden_index_is_bounded_between_0_and_1() -> None:
 
     assert result[0] >= 0
     assert result[1] <= 1
+
+
+def test_alert_burden_index_uses_merged_episode_count_not_raw_records() -> None:
+    data = pl.DataFrame(
+        {
+            "region_id": [1, 2],
+            "region_name": ["Kyiv City", "Lvivska oblast"],
+            "date": [date(2022, 1, 1), date(2022, 1, 1)],
+            "alert_count": [1, 1],
+            "raw_alert_record_count": [1, 100],
+            "merged_alert_episode_count": [1, 1],
+            "alert_minutes_total": [60.0, 60.0],
+            "alert_minutes_night": [0.0, 0.0],
+            "alert_minutes_workday": [0.0, 0.0],
+            "max_alert_duration": [60.0, 60.0],
+            "median_alert_duration": [60.0, 60.0],
+            "longest_alert_free_window_minutes": [1380.0, 1380.0],
+            "share_day_under_alert": [60.0 / 1440.0, 60.0 / 1440.0],
+            "sleep_window_interrupted": [False, False],
+            "workday_interrupted": [False, False],
+            "first_alert_time": [datetime(2022, 1, 1, 1), datetime(2022, 1, 1, 1)],
+            "last_alert_time": [datetime(2022, 1, 1, 2), datetime(2022, 1, 1, 2)],
+        }
+    )
+
+    metrics = build_region_day_metrics(data)
+
+    assert metrics["alert_burden_index"].to_list() == [0.0, 0.0]
 
 
 def test_sleep_disruption_index_is_bounded_between_0_and_1() -> None:
@@ -122,6 +151,19 @@ def test_no_infinite_values_are_produced() -> None:
     assert has_infinite_values(metrics) is False
 
 
+def test_zero_alert_days_produce_valid_finite_metrics() -> None:
+    metrics = build_region_day_metrics(_region_day_features())
+    zero_day = metrics.filter(
+        (pl.col("region_name") == "Kyiv City") & (pl.col("date") == date(2022, 1, 1))
+    ).row(0, named=True)
+
+    assert zero_day["sleep_disruption_index"] == 0
+    assert zero_day["workday_disruption_index"] == 0
+    assert zero_day["alert_free_window_share"] == 1
+    assert zero_day["low_recovery_day"] is False
+    assert isfinite(zero_day["alert_burden_index"])
+
+
 def test_region_summary_has_one_row_per_region() -> None:
     metrics = build_region_day_metrics(_region_day_features())
     summary = build_region_summary_metrics(metrics)
@@ -152,7 +194,9 @@ def _region_day_features() -> pl.DataFrame:
                 date(2022, 1, 1),
                 date(2022, 1, 2),
             ],
-            "alert_count": [0, 4, 1, 2],
+            "alert_count": [0, 2, 1, 1],
+            "raw_alert_record_count": [0, 4, 1, 2],
+            "merged_alert_episode_count": [0, 2, 1, 1],
             "alert_minutes_total": [0.0, 540.0, 60.0, 1440.0],
             "alert_minutes_night": [0.0, 120.0, 60.0, 540.0],
             "alert_minutes_workday": [0.0, 240.0, 30.0, 540.0],
