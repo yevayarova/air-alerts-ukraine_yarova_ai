@@ -42,11 +42,32 @@ Build dashboard-ready civilian disruption metrics:
 uv run python scripts/build_metrics.py
 ```
 
+Run the Streamlit dashboard locally:
+
+```bash
+uv run streamlit run app/streamlit_app.py
+```
+
 The raw downloaded snapshot stays under
 `data/raw/ukrainian-air-raid-sirens-dataset/` and is ignored by git. Source
 metadata and expected-file checks are recorded in `data/raw/manifest.json`.
 Processed Parquet outputs in `data/processed/` are dashboard-ready artifacts and
 may be committed when refreshed.
+
+## Dashboard
+
+The Streamlit dashboard reads only processed data products:
+
+- `data/processed/region_day_metrics.parquet`
+- `data/processed/region_summary_metrics.parquet`
+- `data/processed/national_summary_metrics.parquet`
+- `data/processed/national_day_features.parquet`
+- `reports/metrics_validation.md`
+
+It does not load raw source files or rebuild the pipeline at app startup. This
+keeps the app lightweight for a future Hugging Face Streamlit Space: the GitHub
+refresh pipeline can rebuild processed Parquet artifacts, then the Space can
+serve the public dashboard from those committed or synced outputs.
 
 ## Scope
 
